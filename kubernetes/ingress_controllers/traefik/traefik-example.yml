@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello-node
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hello-node
+  template:
+    metadata:
+      labels:
+        app: hello-node
+    spec:
+      containers:
+        - name: echoserver
+          image: k8s.gcr.io/echoserver:1.4
+          ports:
+            - containerPort: 8080
+              name: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hello-node
+spec:
+  ports:
+    - port: 8080
+  selector:
+    app: hello-node
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: hello-node-ingress
+  annotations:
+    kubernetes.io/ingress.class: traefik
+    cert-manager.io/issuer: selfsigned-issuer
+    ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  rules:
+    - host: hello-node.internal
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: hello-node
+                port:
+                  number: 8080
+  tls:
+    - hosts:
+        - hello-node.internal
+      secretName: hello-node-tls
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: selfsigned-issuer
+  namespace: traefik-example
+spec:
+  selfSigned: {}

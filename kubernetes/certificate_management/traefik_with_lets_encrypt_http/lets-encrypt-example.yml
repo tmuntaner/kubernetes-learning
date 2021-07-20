@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello-node
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hello-node
+  template:
+    metadata:
+      labels:
+        app: hello-node
+    spec:
+      containers:
+        - name: echoserver
+          image: k8s.gcr.io/echoserver:1.4
+          ports:
+            - containerPort: 8080
+              name: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hello-node
+spec:
+  ports:
+    - port: 8080
+  selector:
+    app: hello-node
+---
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  name: hello-node-ingress
+  annotations:
+    kubernetes.io/ingress.class: traefik
+    cert-manager.io/issuer: lets-encrypt-http
+    kubernetes.io/tls-acme: "true"
+    traefik.ingress.kubernetes.io/router.entrypoints: web, websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+spec:
+  rules:
+    - host: hello-node.thomasmuntaner.com
+      http:
+        paths:
+          - path: /
+            backend:
+              serviceName: hello-node
+              servicePort: 8080
+
+  tls:
+    - hosts:
+        - hello-node.thomasmuntaner.com
+      secretName: hello-node-tls
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: lets-encrypt-http
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: issuer-account-key
+    solvers:
+      - http01:
+          ingress:
+            class: traefik

@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello-node
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hello-node
+  template:
+    metadata:
+      labels:
+        app: hello-node
+    spec:
+      containers:
+        - name: echoserver
+          image: tmuntaner/echo-server
+          ports:
+            - containerPort: 8080
+              name: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hello-node
+spec:
+  ports:
+    - port: 8080
+  selector:
+    app: hello-node
+---
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  name: hello-node-ingress
+  annotations:
+    kubernetes.io/ingress.class: traefik
+    traefik.ingress.kubernetes.io/router.entrypoints: web, websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+spec:
+  rules:
+    - host: hello-node.razorcrest.thomasmuntaner.com
+      http:
+        paths:
+          - path: /
+            backend:
+              serviceName: hello-node
+              servicePort: 8080
+  tls:
+    - hosts:
+        - hello-node.razorcrest.thomasmuntaner.com
+      secretName: acme-web-hello-node-certificate
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-issuer
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-issuer-account-key
+    solvers:
+      - selector:
+          dnsZones:
+            - "razorcrest.thomasmuntaner.com"
+        dns01:
+          route53:
+            region: eu-west-1
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: hello-node
+spec:
+  dnsNames:
+    - hello-node.razorcrest.thomasmuntaner.com
+  secretName: acme-web-hello-node-certificate
+  issuerRef:
+    name: letsencrypt-issuer
+    kind: ClusterIssuer
